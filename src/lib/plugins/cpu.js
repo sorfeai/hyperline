@@ -1,6 +1,6 @@
 import React from 'react'
 import Component from 'hyper/component'
-import { currentLoad as cpuLoad } from 'systeminformation'
+import { currentLoad as cpuLoad, cpuTemperature } from 'systeminformation'
 import leftPad from 'left-pad'
 import SvgIcon from '../utils/svg-icon'
 
@@ -54,21 +54,27 @@ export default class Cpu extends Component {
     super(props)
 
     this.state = {
-      cpuLoad: 0
+      cpuLoad: 0,
+      cpuTemperature: 0,
     }
   }
 
-  getCpuLoad() {
+  getCpuInfo() {
     cpuLoad().then(({ currentload }) =>
       this.setState({
-        cpuLoad: leftPad(currentload.toFixed(2), 2, 0)
+        cpuLoad: Math.ceil(currentload)
       })
-    )
+    );
+    cpuTemperature().then(({ main }) =>
+      this.setState({
+        cpuTemperature: main,
+      })
+    );
   }
 
   componentDidMount() {
-    this.getCpuLoad()
-    this.interval = setInterval(() => this.getCpuLoad(), 2500)
+    this.getCpuInfo()
+    this.interval = setInterval(() => this.getCpuInfo(), 2500)
   }
 
   componentWillUnmount() {
@@ -76,9 +82,10 @@ export default class Cpu extends Component {
   }
 
   render() {
+    const { cpuLoad, cpuTemperature } = this.state;
     return (
       <div className='wrapper'>
-        <PluginIcon /> {this.state.cpuLoad}
+        <PluginIcon /> {`${cpuLoad}% (${cpuTemperature}°)`}
 
         <style jsx>{`
           .wrapper {
