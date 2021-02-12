@@ -47,6 +47,7 @@ export default class Spotify extends Component {
   constructor(props) {
     super(props)
 
+    this.isRunning = false
     this.state = { version: 'Not running' }
     this.setStatus = this.setStatus.bind(this)
 
@@ -104,7 +105,10 @@ export default class Spotify extends Component {
   }
 
   openSpotifyLinux() {
-    console.log('opening on linux...')
+    if (!this.isRunning) {
+      exec('spotify')
+      this.isRunning = true
+    }
   }
 
   setStatusLinux() {
@@ -116,8 +120,9 @@ export default class Spotify extends Component {
       exec(`dbus-send --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get \
             string:org.mpris.MediaPlayer2.Player string:PlaybackStatus | tr -d '\\n' | sed -E 's/[^"]*"([^"]*)"/\\1/'`)
     ]).then(([{ stdout: artist }, { stdout: title }, { stdout: status, stderr }]) => {
+      this.isRunning = !stderr
       if (stderr) {
-        this.setState({ state: null })
+        this.setState({ state: 'Not running' })
       } else {
         this.setState({ state: `${status === 'Playing' ? '▶' : '❚❚'} ${artist} — ${title}` })
       }
@@ -158,7 +163,6 @@ export default class Spotify extends Component {
           .wrapper {
             display: flex;
             align-items: center;
-            //color: #1ED760;
           }
         `}</style>
       </div>
