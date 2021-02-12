@@ -1,13 +1,19 @@
 import React from 'react'
 import Component from 'hyper/component'
+import { osInfo } from 'systeminformation'
+import shell from 'shelljs'
+import util from 'util'
+import cp from 'child_process'
 import spotify from 'spotify-node-applescript'
-import SvgIcon from '../utils/svg-icon'
+import SvgIcon from '../../utils/svg-icon'
+
+const exec = util.promisify(cp.exec)
 
 class PluginIcon extends Component {
   render() {
     return (
       <SvgIcon>
-        <g fill="none" fillRule="evenodd">
+        <g fill="none" fillRule="evenodd" transform="translate(0,-1)">
           <g fill="none" fillRule="evenodd">
             <g
               className='spotify-icon'
@@ -48,6 +54,28 @@ export default class Spotify extends Component {
   }
 
   setStatus() {
+    osInfo().then(async ({ platform }) => {
+      if (platform === 'darwin') {
+        this.setStatusOSX()
+      } else if (platform === 'linux') {
+        await this.setStatusLinux()
+      }
+    })
+  }
+
+  openSpotifyOSX() {
+    spotify.isRunning((err, isRunning) => {
+      if (!isRunning) {
+        spotify.openSpotify()
+      }
+
+      if (err) {
+        console.log(`Caught exception at handleSpotifyActivation(e): ${err}`)
+      }
+    })
+  }
+
+  setStatusOSX() {
     spotify.isRunning((err, isRunning) => {
       if (!isRunning) {
         this.setState({ state: 'Not running' })
@@ -75,19 +103,34 @@ export default class Spotify extends Component {
     })
   }
 
-  /*
-    TODO: Make this work on Linux and Win 32/64
-   */
-  handleSpotifyActivation(e) {
-    e.preventDefault()
-    console.log('HANDLE CLICKED FOR SPOTIFY')
-    spotify.isRunning((err, isRunning) => {
-      if (!isRunning) {
-        spotify.openSpotify()
-      }
+  openSpotifyLinux() {
+    console.log('opening on linux...')
+  }
 
-      if (err) {
-        console.log(`Caught exception at handleSpotifyActivation(e): ${err}`)
+  setStatusLinux() {
+    Promise.all([
+      exec(`dbus-send --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get \
+            string:org.mpris.MediaPlayer2.Player string:Metadata | tr -d \'\\n\' | sed -E \'s/.*xesam:artist[^)]*string\\s+"([^"]*)".*/\\1/\'`),
+      exec(`dbus-send --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get \
+            string:org.mpris.MediaPlayer2.Player string:Metadata | tr -d \'\\n\' | sed -E \'s/.*xesam:title[^)]*string\\s+"([^"]*)".*/\\1/\'`),
+      exec(`dbus-send --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get \
+            string:org.mpris.MediaPlayer2.Player string:PlaybackStatus | tr -d '\\n' | sed -E 's/[^"]*"([^"]*)"/\\1/'`)
+    ]).then(([{ stdout: artist }, { stdout: title }, { stdout: status, stderr }]) => {
+      if (stderr) {
+        this.setState({ state: null })
+      } else {
+        this.setState({ state: `${status === 'Playing' ? '▶' : '❚❚'} ${artist} — ${title}` })
+      }
+    })
+  }
+
+  handleSpotifyActivation(e) {
+    console.log('clicked')
+    osInfo().then(async ({ platform }) => {
+      if (platform === 'darwin') {
+        this.openSpotifyOSX()
+      } else if (platform === 'linux') {
+        this.openSpotifyLinux()
       }
     })
   }
@@ -102,6 +145,8 @@ export default class Spotify extends Component {
   }
 
   render() {
+    if (!this.state.state) return null;
+
     return (
       <div
         className='wrapper'
@@ -113,7 +158,7 @@ export default class Spotify extends Component {
           .wrapper {
             display: flex;
             align-items: center;
-            color: #1ED760;
+            //color: #1ED760;
           }
         `}</style>
       </div>
