@@ -163,6 +163,7 @@ export default class Spotify extends Component {
           .wrapper {
             display: flex;
             align-items: center;
+            margin-left: auto;
           }
         `}</style>
       </div>

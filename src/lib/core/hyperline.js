@@ -26,7 +26,6 @@ class HyperLine extends Component {
             display: flex;
             align-items: center;
             position: absolute;
-            overflow: hidden;
             bottom: 0;
             width: 100%;
             height: 18px;
@@ -34,6 +33,8 @@ class HyperLine extends Component {
             background: rgba(0, 0, 0, 0.08);
             margin: 2px 0;
             padding: 0 10px;
+            cursor: default;
+            user-select: none;
           },
           .wrapper {
             display: flex;
