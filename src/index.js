@@ -64,6 +64,7 @@ function filterPluginsByConfig(plugins) {
     }
   })
 
+  console.log(filtered)
   return filtered
 }
 

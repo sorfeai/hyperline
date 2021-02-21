@@ -29,7 +29,7 @@ class TrashIcon extends Component {
 
 export default class CurrencyRate extends Component {
   static displayName() {
-    return 'currency'
+    return 'trash'
   }
 
   constructor() {
@@ -65,7 +65,7 @@ export default class CurrencyRate extends Component {
       const { trashDir, fileManager } = this.props
       exec(`${fileManager} ${trashDir}`)
     } else if (ev.button === 1 && filesCount > 0) {
-      this.setState({ showConfirmClear: true })
+      this.setState((state) => ({ showConfirmClear: !state.showConfirmClear }))
     }
   }
 
@@ -79,11 +79,11 @@ export default class CurrencyRate extends Component {
   render() {
     const { filesCount, showConfirmClear } = this.state;
     return (
-      <div className='wrapper'>
-        <TrashIcon onMouseDown={(ev) => this.onMouseDown(ev)} />
+      <div className="wrapper" onMouseDown={(ev) => this.onMouseDown(ev)}>
+        <TrashIcon />
         {filesCount}
         {showConfirmClear ? (
-          <div className="popup" onClick={(ev) => ev.preventDefault()}>
+          <div className="popup" onMouseDown={(ev) => ev.stopPropagation()}>
             <span>{`Are you sure you want to delete ${filesCount} file(s)?`}</span>
             <div className="popup-buttons">
               <div className="popup-button" onClick={() => this.clearTrash()}>Yes</div>

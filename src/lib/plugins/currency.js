@@ -45,15 +45,13 @@ export default class CurrencyRate extends Component {
   }
 
   updateWeekRates() {
-    exec(`curl -v "http://www.cbr.ru/scripts/XML_dynamic.asp?VAL_NM_RQ=R01235&date_req1=$(date -d '2 week ago' +%d/%m/%Y)&date_req2=$(date +%d/%m/%Y)" 2>/dev/null | \\
+    exec(`curl -v "http://www.cbr.ru/scripts/XML_dynamic.asp?VAL_NM_RQ=${USD_CURRENCY_ID}&date_req1=$(date -d '15 days ago' +%d/%m/%Y)&date_req2=$(date +%d/%m/%Y)" 2>/dev/null | \\
           xmllint --format - | \\
           awk -F'[<|>|"]' '/Record/{d=$3} /Value/{printf "%s;%s\\n",d,$3}'`)
       .then(({ stdout: rates }) => {
         const ratesLines = rates.split('\n')
         this.setState({
-          week: ratesLines
-            .filter(Boolean)
-            .map((str, index) => {
+          week: ratesLines.filter(Boolean).map((str, index) => {
               const [date, value] = str.split(';')
               const valueNum = parseFloat(value.replace(',', '.'))
               let diff
@@ -64,7 +62,7 @@ export default class CurrencyRate extends Component {
                 diff = null
               }
               return { date, value: valueNum.toFixed(2), diff }
-            })
+            }).slice(1)
         })
       })
   }
@@ -73,8 +71,10 @@ export default class CurrencyRate extends Component {
     return parseFloat(value.replace(',', '.')).toFixed(2)
   }
 
-  toggleWeek() {
-    this.setState((state) => ({ showWeek: !state.showWeek }))
+  onMouseDown(ev) {
+    if (ev.button === 1) {
+      this.setState((state) => ({ showWeek: !state.showWeek }))
+    }
   }
 
   render() {
@@ -90,10 +90,12 @@ export default class CurrencyRate extends Component {
     }
 
     return (
-      <div className='wrapper' onClick={() => this.toggleWeek()}>
-        <div>${today}&nbsp;{renderDiff(diff)}</div>
+      <div className="wrapper" onMouseDown={(ev) => this.onMouseDown(ev)}>
+        <div className="display-row">
+          <span className="dollar-icon">$</span>&nbsp;{today}&nbsp;{renderDiff(diff)}
+        </div>
         {showWeek && week.length > 0 ? (
-          <div className="popup" onClick={(ev) => ev.stopPropagation()}>
+          <div className="popup" onMouseDown={(ev) => ev.stopPropagation()}>
             {week.map((rate) =>
               <div className="rateRow">
                 <span className="rateDate">{rate.date}</span> ---- <span>${rate.value} {renderDiff(rate.diff)}</span>
@@ -107,22 +109,24 @@ export default class CurrencyRate extends Component {
             position: relative;
             display: flex;
             align-items: center;
-            line-height: 1.1;
           }
           .popup {
             position: absolute;
-            bottom: 20px;
-            right: -29px;
+            bottom: 24px;
             width: 187px;
             padding: 6px;
             border: 1px solid #1ED760;
             background: rgba(0,0,0,.75);
           }
+          .display-row {
+            display: flex;
+            align-items: center;
+          }
           .rateRow {
             line-height: 1.5;
           }
-          .rateDate {
-            font-weight: normal;
+          .dollar-icon {
+            font-size: 13px;
           }
         `}</style>
       </div>

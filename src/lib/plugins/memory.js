@@ -70,10 +70,9 @@ export default class Memory extends Component {
     return memoryData().then(memory => {
       const totalMemory = this.getGb(memory.total)
       const activeMemory = this.getGb(memory.active)
-      const totalWidth = totalMemory.toString().length
 
       return {
-        activeMemory: leftPad(activeMemory, totalWidth, 0),
+        activeMemory,
         totalMemory
       }
     })
@@ -83,11 +82,6 @@ export default class Memory extends Component {
     return this.getMemory().then(data => this.setState(data))
   }
 
-  getMb(bytes) {
-    // 1024 * 1024 = 1048576
-    return (bytes / 1048576).toFixed(0)
-  }
-
   getGb(bytes) {
     return (bytes / (1024 * 1024 * 1024)).toFixed(1)
   }
@@ -95,7 +89,7 @@ export default class Memory extends Component {
   render() {
     return (
       <div className='wrapper'>
-        <PluginIcon /> {this.state.activeMemory}GB / {this.state.totalMemory}GB
+        <PluginIcon /> {this.state.activeMemory}G
 
         <style jsx>{`
           .wrapper {
