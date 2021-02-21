@@ -6,6 +6,7 @@ import cp from 'child_process'
 const exec = util.promisify(cp.exec)
 
 const USD_CURRENCY_ID = 'R01235'
+const DISPLAY_DAYS_COUNT = 14
 
 export default class CurrencyRate extends Component {
   static displayName() {
@@ -45,7 +46,7 @@ export default class CurrencyRate extends Component {
   }
 
   updateWeekRates() {
-    exec(`curl -v "http://www.cbr.ru/scripts/XML_dynamic.asp?VAL_NM_RQ=${USD_CURRENCY_ID}&date_req1=$(date -d '15 days ago' +%d/%m/%Y)&date_req2=$(date +%d/%m/%Y)" 2>/dev/null | \\
+    exec(`curl -v "http://www.cbr.ru/scripts/XML_dynamic.asp?VAL_NM_RQ=${USD_CURRENCY_ID}&date_req1=$(date -d '${DISPLAY_DAYS_COUNT+1} days ago' +%d/%m/%Y)&date_req2=$(date +%d/%m/%Y)" 2>/dev/null | \\
           xmllint --format - | \\
           awk -F'[<|>|"]' '/Record/{d=$3} /Value/{printf "%s;%s\\n",d,$3}'`)
       .then(({ stdout: rates }) => {

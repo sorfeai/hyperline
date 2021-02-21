@@ -53,7 +53,7 @@ export default class CurrencyRate extends Component {
   }
 
   updateTrashCount() {
-    const { trashDir } = this.props
+    const { trashDir } = this.props.options
     exec(`find ${trashDir} -type f | wc -l`).then(({ stdout, stderr }) => {
       this.setState({ filesCount: stdout })
     })
@@ -62,7 +62,7 @@ export default class CurrencyRate extends Component {
   onMouseDown(ev) {
     const { filesCount } = this.state
     if (ev.button === 0) {
-      const { trashDir, fileManager } = this.props
+      const { trashDir, fileManager } = this.props.options
       exec(`${fileManager} ${trashDir}`)
     } else if (ev.button === 1 && filesCount > 0) {
       this.setState((state) => ({ showConfirmClear: !state.showConfirmClear }))
@@ -70,7 +70,7 @@ export default class CurrencyRate extends Component {
   }
 
   clearTrash() {
-    const { trashDir } = this.props
+    const { trashDir } = this.props.options
     exec(`rm -rf ${trashDir}/*`).then(() => {
       this.setState({ showConfirmClear: false })
     })
