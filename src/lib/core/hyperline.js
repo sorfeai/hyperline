@@ -11,13 +11,13 @@ class HyperLine extends Component {
   }
 
   render() {
-    const { plugins, ...props } = this.props
+    const { plugins, trashDir, fileManager, ...props } = this.props
 
     return (
       <div className="line" {...props}>
         {plugins.map((Component, index) => (
           <div key={index} className="wrapper">
-            <Component />
+            <Component trashDir={trashDir} fileManager={fileManager} />
           </div>
         ))}
 

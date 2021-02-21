@@ -9,5 +9,6 @@ import battery from './battery'
 // Import Docker from './docker'
 import spotify from './spotify/spotify'
 import currency from './currency'
+import trash from './trash/trash'
 
-export default [hostname, ip, memory, battery, cpu, network, currency, spotify]
+export default [hostname, ip, memory, battery, cpu, network, currency, spotify, trash]

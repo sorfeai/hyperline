@@ -1,7 +1,6 @@
 import React from 'react'
 import Component from 'hyper/component'
 import { osInfo } from 'systeminformation'
-import shell from 'shelljs'
 import util from 'util'
 import cp from 'child_process'
 import spotify from 'spotify-node-applescript'

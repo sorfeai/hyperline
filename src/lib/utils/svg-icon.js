@@ -11,7 +11,7 @@ export default class SvgIcon extends Component {
 
   render() {
     return (
-      <svg className="icon" xmlns="http://www.w3.org/2000/svg">
+      <svg {...this.props} className="icon" xmlns="http://www.w3.org/2000/svg">
         {this.props.children}
 
         <style jsx>{`

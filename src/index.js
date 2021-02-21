@@ -19,16 +19,21 @@ export function reduceUI(state, { type, config }) {
 
 export function mapHyperState({ ui: { colors, fontFamily, hyperline } }, map) {
   let userPlugins = []
+  let trashDir
   if (hyperline !== undefined) {
     if (hyperline.plugins !== undefined) {
       userPlugins = hyperline.plugins
+    }
+    if (hyperline.trashDir !== undefined) {
+      trashDir = hyperline.trashDir
     }
   }
 
   return Object.assign({}, map, {
     colors: getColorList(colors),
     fontFamily,
-    userPlugins
+    userPlugins,
+    trashDir
   })
 }
 
@@ -62,6 +67,16 @@ function filterPluginsByConfig(plugins) {
   return filtered
 }
 
+function getTrashDir() {
+  const config = window.config.getConfig().hyperline
+  return (config && config.trashDir) || '$HOME/.local/share/Trash/files'
+}
+
+function getFileManager() {
+  const config = window.config.getConfig().hyperline
+  return config && config.fileManager || 'nautilus'
+}
+
 export function decorateHyperLine(HyperLine) {
   return class extends Component {
     static displayName() {
@@ -83,7 +98,14 @@ export function decorateHyperLine(HyperLine) {
     render() {
       const plugins = [...this.props.plugins, ...hyperlinePlugins]
 
-      return <HyperLine {...this.props} plugins={filterPluginsByConfig(plugins)} />
+      return (
+        <HyperLine
+          {...this.props}
+          plugins={filterPluginsByConfig(plugins)}
+          trashDir={getTrashDir()}
+          fileManager={getFileManager()}
+        />
+      )
     }
   }
 }
