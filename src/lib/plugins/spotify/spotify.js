@@ -8,6 +8,8 @@ import SvgIcon from '../../utils/svg-icon'
 
 const exec = util.promisify(cp.exec)
 
+const API_TOKEN = 'BQDymS8Xo1vNiouB-H48cuYPAqv7clpT11BOQLxdw6uwW0CkE3EohwCVvZ8FXmfYP0S05wyfVU9u44x1LI1w_WlmTdDfFvtDE84LhV9cdWyzBxNowKsZMWiJm3JotSVkieMTkpq3HDbwl2VbffCUsoGi38DzGkjiAbubr8REbQYe-5ZBRgUX4Yh9DagvB0RYzdU7pgAzb5za76e8cC9aCuP3MIVs6Qpz0O0IfNMEwObxqW0Ndq2AryZxJdVSY-477Kb-_MAPyuskOHf6qBQyXiBe5geMLMBy-vzOZeQfs1lC'
+
 class PluginIcon extends Component {
   render() {
     return (
@@ -47,10 +49,14 @@ export default class Spotify extends Component {
     super(props)
 
     this.isRunning = false
-    this.state = { version: 'Not running' }
-    this.setStatus = this.setStatus.bind(this)
+    this.state = {
+      version: 'Not running',
+      loaded: false,
+      showPlayerInfo: false
+    }
 
-    this.handleSpotifyActivation = this.handleSpotifyActivation.bind(this)
+    this.setStatus = this.setStatus.bind(this)
+    this.openSpotify = this.openSpotify.bind(this)
   }
 
   setStatus() {
@@ -58,7 +64,8 @@ export default class Spotify extends Component {
       if (platform === 'darwin') {
         this.setStatusOSX()
       } else if (platform === 'linux') {
-        await this.setStatusLinux()
+        // await this.setStatusLinux()
+        this.getCurrentlyPlaying()
       }
     })
   }
@@ -128,8 +135,51 @@ export default class Spotify extends Component {
     })
   }
 
-  handleSpotifyActivation(e) {
-    console.log('clicked')
+  getCurrentlyPlaying() {
+    fetch('https://api.spotify.com/v1/me/player/currently-playing?market=RU', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_TOKEN}`
+      }
+    }).then((res) => res.json())
+      .then((data) => {
+        // console.log(data)
+        const item = data.item
+        const album = item.album
+
+        this.setState({
+          loaded: true,
+          isPlaying: data.is_playing,
+          track: item.name,
+          duration: item.duration_ms,
+          progress: data.progress_ms,
+          artist: album.artists[0].name,
+          album: album.name,
+          image: album.images[1].url
+        })
+      })
+      .catch((err) => console.log(err))
+  }
+
+  onMouseDown(ev) {
+    if (ev.button === 0) {
+      this.openSpotify()
+    } else if (ev.button === 1) {
+      this.setState((state) => ({ showPlayerInfo: !state.showPlayerInfo }))
+    }
+  }
+
+  onTimelineClick(ev) {
+    if (!this.timelineRef) return
+    const { duration } = this.state
+    const { x, width } = this.timelineRef.getBoundingClientRect()
+    const position = (ev.clientX - x) / width * duration
+    this.seek(Math.floor(position))
+  }
+
+  openSpotify() {
     osInfo().then(async ({ platform }) => {
       if (platform === 'darwin') {
         this.openSpotifyOSX()
@@ -139,9 +189,58 @@ export default class Spotify extends Component {
     })
   }
 
+  play() {
+    fetch('https://api.spotify.com/v1/me/player/play', {
+      method: 'PUT',
+      headers: this.getHeaders()
+    }).then(() => {
+      this.setState({ isPlaying: true })
+    })
+  }
+
+  pause() {
+    fetch('https://api.spotify.com/v1/me/player/pause', {
+      method: 'PUT',
+      headers: this.getHeaders()
+    }).then(() => {
+      this.setState({ isPlaying: false })
+    })
+  }
+
+  next() {
+    fetch('https://api.spotify.com/v1/me/player/next', {
+      method: 'POST',
+      headers: this.getHeaders()
+    })
+  }
+
+  previous() {
+    fetch('https://api.spotify.com/v1/me/player/previous', {
+      method: 'POST',
+      headers: this.getHeaders()
+    })
+  }
+
+  seek(positionMs) {
+    console.log(positionMs)
+    fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${positionMs}`, {
+      method: 'PUT',
+      headers: this.getHeaders()
+    })
+  }
+
+  getHeaders() {
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_TOKEN}`
+    }
+  }
+
   componentDidMount() {
     this.setStatus()
     this.interval = setInterval(() => this.setStatus(), 1000)
+    this.getCurrentlyPlaying()
   }
 
   componentWillUnmount() {
@@ -149,20 +248,82 @@ export default class Spotify extends Component {
   }
 
   render() {
-    if (!this.state.state) return null;
+    if (!this.state.loaded) return null;
+
+    const { showPlayerInfo, isPlaying, track, album, artist, image, progress, duration } = this.state
 
     return (
-      <div
-        className='wrapper'
-        onClick={this.handleSpotifyActivation.bind(this)}
-      >
-        <PluginIcon /> {this.state.state}
+      <div className='wrapper' onMouseDown={(ev) => this.onMouseDown(ev)}>
+        <PluginIcon /> {isPlaying ? '▶' : '❚❚'} {artist} — {track}
+        {showPlayerInfo ? (
+          <div className="popup" onMouseDown={(ev) => ev.stopPropagation()}>
+            <div className="album-cover" style={{ backgroundImage: `url(${image})` }} />
+            <div className="controls">
+              <span className="control previous" onClick={() => this.previous()}>⇤</span>
+              {isPlaying ? (
+                <span className="control pause" onClick={() => this.pause()}>❚❚</span>
+              ) : (
+                <span className="control play" onClick={() => this.play()}>▶</span>
+              )}
+              <span className="control next" onClick={() => this.next()}>⇥</span>
+            </div>
+            <div className="timeline" ref={(ref) => this.timelineRef = ref} onClick={(ev) => this.onTimelineClick(ev)}>
+              <div className="timeline-progress" style={{ width: `${progress/duration*100}%` }} />
+            </div>
+          </div>
+        ) : null}
 
         <style jsx>{`
           .wrapper {
             display: flex;
             align-items: center;
             margin-left: auto;
+          }
+          .popup {
+            position: absolute;
+            bottom: 24px;
+            width: 200px;
+            padding: 6px;
+            border: 1px solid #1ED760;
+            background: rgba(0,0,0,.75);
+            box-sizing: border-box;
+          }
+          .album-cover {
+            width: 100%;
+            padding-top: 100%;
+            margin-bottom: 10px;
+          }
+          .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 20px;
+            color: #1ED760;
+          }
+          .control {
+            margin: 0 10px;
+            cursor: pointer;
+          }
+          .control.play,
+          .control.pause {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            top: -1px;
+            width: 20px;
+            height: 20px;
+          }
+          .control.pause {
+            font-size: 13px;
+          }
+          .timeline {
+            cursor: pointer;
+          }
+          .timeline-progress {
+            height: 5px;
+            background: #1ED760;
           }
         `}</style>
       </div>

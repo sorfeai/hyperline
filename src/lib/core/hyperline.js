@@ -12,7 +12,6 @@ class HyperLine extends Component {
 
   render() {
     const { plugins, pluginsOptions, ...props } = this.props
-    console.log(pluginsOptions)
 
     return (
       <div className="line" {...props}>
