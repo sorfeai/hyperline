@@ -8,7 +8,7 @@ import SvgIcon from '../../utils/svg-icon'
 
 const exec = util.promisify(cp.exec)
 
-const API_TOKEN = 'BQDymS8Xo1vNiouB-H48cuYPAqv7clpT11BOQLxdw6uwW0CkE3EohwCVvZ8FXmfYP0S05wyfVU9u44x1LI1w_WlmTdDfFvtDE84LhV9cdWyzBxNowKsZMWiJm3JotSVkieMTkpq3HDbwl2VbffCUsoGi38DzGkjiAbubr8REbQYe-5ZBRgUX4Yh9DagvB0RYzdU7pgAzb5za76e8cC9aCuP3MIVs6Qpz0O0IfNMEwObxqW0Ndq2AryZxJdVSY-477Kb-_MAPyuskOHf6qBQyXiBe5geMLMBy-vzOZeQfs1lC'
+const API_TOKEN = 'BQAeQCiXu7Orn524qHCQtloICj868gIviB12QaWr46aNuPMP3RaOxFdt-XUY9-XYRwDh6vHhRicOO55GvWMhZOu0EXFxI6x95msqOT55blpJWg92xzeln-tsHhTxGrw2hWB89IyIf-32C_oVCBEbIHr66E8pSCGro5Ti1gSSi00_VVy_vlizS8UjnzZ9-PcK6296MafguJb5X36EXVyiMHY5tVPr4LnPtZiEuCk5BlmRRZCEC3tO0xo7C9UaROMwlNpBJVxr4vJXiYUT1OCmaDTVnNngGWflBBHKlVVUG_Bm'
 
 class PluginIcon extends Component {
   render() {
@@ -52,11 +52,16 @@ export default class Spotify extends Component {
     this.state = {
       version: 'Not running',
       loaded: false,
-      showPlayerInfo: false
+      showMiniPlayer: false
     }
+    this.options = Object.assign({}, this.getDefaultOptions(), this.props.options)
 
     this.setStatus = this.setStatus.bind(this)
     this.openSpotify = this.openSpotify.bind(this)
+  }
+
+  getDefaultOptions() {
+    return { miniPlayer: true }
   }
 
   setStatus() {
@@ -64,8 +69,8 @@ export default class Spotify extends Component {
       if (platform === 'darwin') {
         this.setStatusOSX()
       } else if (platform === 'linux') {
-        // await this.setStatusLinux()
         this.getCurrentlyPlaying()
+        this.getVolume()
       }
     })
   }
@@ -145,7 +150,7 @@ export default class Spotify extends Component {
       }
     }).then((res) => res.json())
       .then((data) => {
-        // console.log(data)
+        console.log(data)
         const item = data.item
         const album = item.album
 
@@ -163,12 +168,37 @@ export default class Spotify extends Component {
       .catch((err) => console.log(err))
   }
 
+  getVolume() {
+    fetch('https://api.spotify.com/v1/me/player/devices', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_TOKEN}`
+      }
+    }).then((res) => res.json())
+      .then((data) => {
+        const device = data.devices.find((dev) => dev.type === 'Computer')
+        this.setState({ volumePercent: device.volume_percent })
+      })
+      .catch((err) => console.log(err))
+  }
+
   onMouseDown(ev) {
     if (ev.button === 0) {
-      this.openSpotify()
-    } else if (ev.button === 1) {
-      this.setState((state) => ({ showPlayerInfo: !state.showPlayerInfo }))
+      // this.openSpotify()
+    } else if (ev.button === 1 && this.options.miniPlayer) {
+      this.setState((state) => ({ showMiniPlayer: !state.showMiniPlayer }))
     }
+  }
+
+  onWheel(ev) {
+    const d = -Math.floor(ev.deltaY/10)
+    this.setState((state) => ({
+      volumePercent: Math.min(Math.max(0, state.volumePercent + d), 100)
+    }), () => {
+      this.setVolume(this.state.volumePercent)
+    })
   }
 
   onTimelineClick(ev) {
@@ -195,7 +225,7 @@ export default class Spotify extends Component {
       headers: this.getHeaders()
     }).then(() => {
       this.setState({ isPlaying: true })
-    })
+    }).catch((err) => console.log(err))
   }
 
   pause() {
@@ -204,29 +234,35 @@ export default class Spotify extends Component {
       headers: this.getHeaders()
     }).then(() => {
       this.setState({ isPlaying: false })
-    })
+    }).catch((err) => console.log(err))
   }
 
   next() {
     fetch('https://api.spotify.com/v1/me/player/next', {
       method: 'POST',
       headers: this.getHeaders()
-    })
+    }).catch((err) => console.log(err))
   }
 
   previous() {
     fetch('https://api.spotify.com/v1/me/player/previous', {
       method: 'POST',
       headers: this.getHeaders()
-    })
+    }).catch((err) => console.log(err))
   }
 
   seek(positionMs) {
-    console.log(positionMs)
     fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${positionMs}`, {
       method: 'PUT',
       headers: this.getHeaders()
-    })
+    }).catch((err) => console.log(err))
+  }
+
+  setVolume(value) {
+    fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${value}`, {
+      method: 'PUT',
+      headers: this.getHeaders()
+    }).catch((err) => console.log(err))
   }
 
   getHeaders() {
@@ -240,7 +276,6 @@ export default class Spotify extends Component {
   componentDidMount() {
     this.setStatus()
     this.interval = setInterval(() => this.setStatus(), 1000)
-    this.getCurrentlyPlaying()
   }
 
   componentWillUnmount() {
@@ -250,12 +285,21 @@ export default class Spotify extends Component {
   render() {
     if (!this.state.loaded) return null;
 
-    const { showPlayerInfo, isPlaying, track, album, artist, image, progress, duration } = this.state
+    const { showMiniPlayer, isPlaying, track, album, artist, image, progress, duration, volumePercent } = this.state
+    const volumeLines = Math.floor((volumePercent+15)/20)
 
     return (
-      <div className='wrapper' onMouseDown={(ev) => this.onMouseDown(ev)}>
+      <div className='wrapper'
+           onMouseDown={(ev) => this.onMouseDown(ev)}
+           onWheel={(ev) => this.onWheel(ev)}>
         <PluginIcon /> {isPlaying ? '▶' : '❚❚'} {artist} — {track}
-        {showPlayerInfo ? (
+        <div className="volume-level">
+          {new Array(5).fill(0).map((_, index) => (
+            <div className="volume-line"
+                 style={{ height: `${2 + index*2}px`, opacity: index+1 <= volumeLines ? 1 : 0 }} />
+          ))}
+        </div>
+        {showMiniPlayer ? (
           <div className="popup" onMouseDown={(ev) => ev.stopPropagation()}>
             <div className="album-cover" style={{ backgroundImage: `url(${image})` }} />
             <div className="controls">
@@ -324,6 +368,19 @@ export default class Spotify extends Component {
           .timeline-progress {
             height: 5px;
             background: #1ED760;
+          }
+          .volume-level {
+            position: relative;
+            left: 5px;
+            bottom: 2px;
+            display: flex;
+            width: 15px;
+            justify-content: space-between;
+            align-items: flex-end;
+          }
+          .volume-line {
+            width: 2px;
+            background: white;
           }
         `}</style>
       </div>
