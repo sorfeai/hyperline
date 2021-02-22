@@ -121,7 +121,6 @@ export default class CurrencyRate extends Component {
           }
           .display-row {
             display: flex;
-            align-items: center;
           }
           .rateRow {
             line-height: 1.5;

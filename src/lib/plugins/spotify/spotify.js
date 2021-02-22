@@ -64,6 +64,15 @@ export default class Spotify extends Component {
     this.next = this.next.bind(this)
   }
 
+  componentDidMount() {
+    this.setStatus()
+    this.interval = setInterval(() => this.setStatus(), 1000)
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.interval)
+  }
+
   getDefaultOptions() {
     return { miniPlayer: true }
   }
@@ -154,7 +163,6 @@ export default class Spotify extends Component {
       }
     }).then((res) => res.json())
       .then((data) => {
-        console.log(data)
         const item = data.item
         const album = item.album
 
@@ -187,31 +195,6 @@ export default class Spotify extends Component {
         this.setState({ volumePercent: device.volume_percent })
       })
       .catch((err) => console.log(err))
-  }
-
-  onMouseDown(ev) {
-    if (ev.button === 0) {
-      // this.openSpotify()
-    } else if (ev.button === 1 && this.options.miniPlayer) {
-      this.setState((state) => ({ showMiniPlayer: !state.showMiniPlayer }))
-    }
-  }
-
-  onWheel(ev) {
-    const d = -Math.floor(ev.deltaY/10)
-    this.setState((state) => ({
-      volumePercent: Math.min(Math.max(0, state.volumePercent + d), 100)
-    }), () => {
-      this.setVolume(this.state.volumePercent)
-    })
-  }
-
-  onTimelineClick(ev) {
-    if (!this.timelineRef) return
-    const { duration } = this.state
-    const { x, width } = this.timelineRef.getBoundingClientRect()
-    const position = (ev.clientX - x) / width * duration
-    this.seek(Math.floor(position))
   }
 
   openSpotify() {
@@ -300,13 +283,29 @@ export default class Spotify extends Component {
     }
   }
 
-  componentDidMount() {
-    this.setStatus()
-    this.interval = setInterval(() => this.setStatus(), 1000)
+  onMouseDown(ev) {
+    if (ev.button === 0) {
+      // this.openSpotify()
+    } else if (ev.button === 1 && this.options.miniPlayer) {
+      this.setState((state) => ({ showMiniPlayer: !state.showMiniPlayer }))
+    }
   }
 
-  componentWillUnmount() {
-    clearInterval(this.interval)
+  onWheel(ev) {
+    const d = -Math.floor(ev.deltaY/10)
+    this.setState((state) => ({
+      volumePercent: Math.min(Math.max(0, state.volumePercent + d), 100)
+    }), () => {
+      this.setVolume(this.state.volumePercent)
+    })
+  }
+
+  onTimelineClick(ev) {
+    if (!this.timelineRef) return
+    const { duration } = this.state
+    const { x, width } = this.timelineRef.getBoundingClientRect()
+    const position = (ev.clientX - x) / width * duration
+    this.seek(Math.floor(position))
   }
 
   render() {
