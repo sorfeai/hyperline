@@ -8,7 +8,7 @@ import SvgIcon from '../../utils/svg-icon'
 
 const exec = util.promisify(cp.exec)
 
-const API_TOKEN = 'BQAeQCiXu7Orn524qHCQtloICj868gIviB12QaWr46aNuPMP3RaOxFdt-XUY9-XYRwDh6vHhRicOO55GvWMhZOu0EXFxI6x95msqOT55blpJWg92xzeln-tsHhTxGrw2hWB89IyIf-32C_oVCBEbIHr66E8pSCGro5Ti1gSSi00_VVy_vlizS8UjnzZ9-PcK6296MafguJb5X36EXVyiMHY5tVPr4LnPtZiEuCk5BlmRRZCEC3tO0xo7C9UaROMwlNpBJVxr4vJXiYUT1OCmaDTVnNngGWflBBHKlVVUG_Bm'
+const API_TOKEN = 'BQDzt4-NHlBc_blSFUuiLnnwGfMXdMZGz9RFx9PJbJqeJBD57F-JOaGGl2Z9lJPnmcyXMx37COlGNUnjburBM1CORJP8BaGKFuxgoIGi13JPfo6hcU49FSF6xiw_RGXbfeXlFHXGy5jRjVT0dWflWzQoVZkTd344wcHVPYA8xn-gjC_Qfwpz_F3Ocj0KhjAcXEQP8E-_j4mmMi-GG2erYx_ILTMykl6jslu12thiHAKB9uNPKVFdIxs-pzpdlbhBblD13Z5o7LUEOtnOcPHTfuOtjQ-GysaOG_wst3Cx5mV3'
 
 class PluginIcon extends Component {
   render() {
@@ -58,6 +58,10 @@ export default class Spotify extends Component {
 
     this.setStatus = this.setStatus.bind(this)
     this.openSpotify = this.openSpotify.bind(this)
+    this.play = this.play.bind(this)
+    this.pause = this.pause.bind(this)
+    this.previous = this.previous.bind(this)
+    this.next = this.next.bind(this)
   }
 
   getDefaultOptions() {
@@ -158,6 +162,7 @@ export default class Spotify extends Component {
           loaded: true,
           isPlaying: data.is_playing,
           track: item.name,
+          trackId: item.id,
           duration: item.duration_ms,
           progress: data.progress_ms,
           artist: album.artists[0].name,
@@ -241,6 +246,8 @@ export default class Spotify extends Component {
     fetch('https://api.spotify.com/v1/me/player/next', {
       method: 'POST',
       headers: this.getHeaders()
+    }).then(() => {
+      this.setState({ trackSaved: false })
     }).catch((err) => console.log(err))
   }
 
@@ -248,6 +255,8 @@ export default class Spotify extends Component {
     fetch('https://api.spotify.com/v1/me/player/previous', {
       method: 'POST',
       headers: this.getHeaders()
+    }).then(() => {
+      this.setState({ trackSaved: false })
     }).catch((err) => console.log(err))
   }
 
@@ -262,6 +271,24 @@ export default class Spotify extends Component {
     fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${value}`, {
       method: 'PUT',
       headers: this.getHeaders()
+    }).catch((err) => console.log(err))
+  }
+
+  saveTrack(id) {
+    fetch(`https://api.spotify.com/v1/me/tracks?ids=${id}`, {
+      method: 'PUT',
+      headers: this.getHeaders()
+    }).then(() => {
+      this.setState({ trackSaved: true })
+    }).catch((err) => console.log(err))
+  }
+
+  deleteTrack(id) {
+    fetch(`https://api.spotify.com/v1/me/tracks?ids=${id}`, {
+      method: 'DELETE',
+      headers: this.getHeaders()
+    }).then(() => {
+      this.setState({ trackSaved: false })
     }).catch((err) => console.log(err))
   }
 
@@ -285,7 +312,7 @@ export default class Spotify extends Component {
   render() {
     if (!this.state.loaded) return null;
 
-    const { showMiniPlayer, isPlaying, track, album, artist, image, progress, duration, volumePercent } = this.state
+    const { showMiniPlayer, isPlaying, track, album, artist, image, progress, duration, volumePercent, trackSaved, trackId } = this.state
     const volumeLines = Math.floor((volumePercent+15)/20)
 
     return (
@@ -303,13 +330,18 @@ export default class Spotify extends Component {
           <div className="popup" onMouseDown={(ev) => ev.stopPropagation()}>
             <div className="album-cover" style={{ backgroundImage: `url(${image})` }} />
             <div className="controls">
-              <span className="control previous" onClick={() => this.previous()}>⇤</span>
+              <span className="control previous" onClick={this.previous}>⇤</span>
               {isPlaying ? (
-                <span className="control pause" onClick={() => this.pause()}>❚❚</span>
+                <span className="control pause" onClick={this.pause}>❚❚</span>
               ) : (
-                <span className="control play" onClick={() => this.play()}>▶</span>
+                <span className="control play" onClick={this.play}>▶</span>
               )}
-              <span className="control next" onClick={() => this.next()}>⇥</span>
+              <span className="control next" onClick={this.next}>⇥</span>
+              {trackSaved ? (
+                <div className="control heart-button save-track" onClick={() => this.deleteTrack(trackId)}>♥</div>
+              ) : (
+                <div className="control heart-button delete-track" onClick={() => this.saveTrack(trackId)}>♡</div>
+              )}
             </div>
             <div className="timeline" ref={(ref) => this.timelineRef = ref} onClick={(ev) => this.onTimelineClick(ev)}>
               <div className="timeline-progress" style={{ width: `${progress/duration*100}%` }} />
@@ -336,8 +368,10 @@ export default class Spotify extends Component {
             width: 100%;
             padding-top: 100%;
             margin-bottom: 10px;
+            background-size: contain;
           }
           .controls {
+            position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -381,6 +415,18 @@ export default class Spotify extends Component {
           .volume-line {
             width: 2px;
             background: white;
+          }
+          .heart-button {
+            position: absolute;
+            top: 0;
+            right: 0;
+            font-size: 20px;
+          }
+          .heart-button.save-track {
+            line-height: 1.2;
+          }
+          .heart-button.delete-track {
+            line-height: 1.3;
           }
         `}</style>
       </div>
