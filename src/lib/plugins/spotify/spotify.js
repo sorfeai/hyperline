@@ -8,7 +8,7 @@ import SvgIcon from '../../utils/svg-icon'
 
 const exec = util.promisify(cp.exec)
 
-const API_TOKEN = 'BQCSXkjsQBPxOQZEegZan2XuC67WhuOMVCswhV0LzBwtJJkNX5WrXlglczURNfkY7VuwzNNqhMyhzsBV6gSssDwgNkXduHrKxGt11gxcQDmroAmrBjZi0-ImGTJvhWGZW3ZvbE73joO8vfQIC40PNQlZXigobRls1a_iZuelMgDaSptsLqa7gi2KzcuyZHxKL-l2t3jh2gV62SoS3ptaS69TO89FyYZim3L-j4ApP_o3H2_8mqDM4pJpIQyMK0r2pDfx3SKpAJwrwPKPod8jf3plhpry2gN3iLiuRb2Hw9q1'
+const API_TOKEN = 'BQA_YDsja1NhSf1Sdaswvo83DKaYowlScCkZZrVIMps9s9w0nhwHNbhqKggS6fuOAvJUeOHFyrt2MGDwpHZ4HMVQvJR9cik231zIGPYvDmL_63ehqFWEAiLDc-7rSrjljL8Etwm41qQVnsOwuLet4Bnz88AdojpBGjtlaeI1YBUcv1PiU2YAMf_v5Mtb9H4IkH5Hf3y-3PLg3R24imqG5RCTbde_zJINpQ47_lyi9CbY9BOHEhl2TiQ85gXffCsid6NEPurFd_4fAdKcBkmFDc3On0t9Wo6nXf_8LpFt6uF2'
 
 export default class Spotify extends Component {
   static displayName() {
@@ -52,7 +52,7 @@ export default class Spotify extends Component {
       if (platform === 'darwin') {
         this.setStatusOSX()
       } else if (platform === 'linux') {
-        this.getCurrentlyPlaying()
+        this.setStatusLinux()
         this.getVolume()
       }
     })
@@ -106,36 +106,10 @@ export default class Spotify extends Component {
   }
 
   setStatusLinux() {
-    Promise.all([
-      exec(`dbus-send --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get \
-            string:org.mpris.MediaPlayer2.Player string:Metadata | tr -d \'\\n\' | sed -E \'s/.*xesam:artist[^)]*string\\s+"([^"]*)".*/\\1/\'`),
-      exec(`dbus-send --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get \
-            string:org.mpris.MediaPlayer2.Player string:Metadata | tr -d \'\\n\' | sed -E \'s/.*xesam:title[^)]*string\\s+"([^"]*)".*/\\1/\'`),
-      exec(`dbus-send --print-reply --dest=org.mpris.MediaPlayer2.spotify /org/mpris/MediaPlayer2 org.freedesktop.DBus.Properties.Get \
-            string:org.mpris.MediaPlayer2.Player string:PlaybackStatus | tr -d '\\n' | sed -E 's/[^"]*"([^"]*)"/\\1/'`)
-    ]).then(([{ stdout: artist }, { stdout: title }, { stdout: status, stderr }]) => {
-      this.isRunning = !stderr
-      if (stderr) {
-        this.setState({ state: 'Not running' })
-      } else {
-        this.setState({ state: `${status === 'Playing' ? '▶' : '❚❚'} ${artist} — ${title}` })
-      }
-    })
-  }
-
-  getCurrentlyPlaying() {
-    fetch('https://api.spotify.com/v1/me/player/currently-playing?market=RU', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_TOKEN}`
-      }
-    }).then((res) => res.json())
+    this.getCurrentlyPlaying()
       .then((data) => {
         const item = data.item
         const album = item.album
-
         this.setState({
           loaded: true,
           isPlaying: data.is_playing,
@@ -147,7 +121,40 @@ export default class Spotify extends Component {
           album: album.name,
           image: album.images[1].url
         })
+
+        return this.getIsTrackSaved(item.id)
       })
+      .then((trackSaved) => {
+        console.log(trackSaved)
+        this.setState({ trackSaved })
+      })
+      .catch((err) => console.log(err))
+  }
+
+  getCurrentlyPlaying() {
+    return fetch('https://api.spotify.com/v1/me/player/currently-playing?market=RU', {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_TOKEN}`
+      }
+    })
+      .then((res) => res.json())
+      .catch((err) => console.log(err))
+  }
+
+  getIsTrackSaved(trackId) {
+    return fetch(`https://api.spotify.com/v1/me/tracks/contains?ids=${trackId}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${API_TOKEN}`
+      }
+    })
+      .then((res) => res.json())
+      .then((res) => res[0])
       .catch((err) => console.log(err))
   }
 
@@ -190,9 +197,11 @@ export default class Spotify extends Component {
     fetch('https://api.spotify.com/v1/me/player/pause', {
       method: 'PUT',
       headers: this.getHeaders()
-    }).then(() => {
-      this.setState({ isPlaying: false })
-    }).catch((err) => console.log(err))
+    })
+      .then(() => {
+        this.setState({ isPlaying: false })
+      })
+      .catch((err) => console.log(err))
   }
 
   next() {
@@ -208,41 +217,49 @@ export default class Spotify extends Component {
     fetch('https://api.spotify.com/v1/me/player/previous', {
       method: 'POST',
       headers: this.getHeaders()
-    }).then(() => {
-      this.setState({ trackSaved: false })
-    }).catch((err) => console.log(err))
+    })
+      .then(() => {
+        this.setState({ trackSaved: false })
+      })
+      .catch((err) => console.log(err))
   }
 
   seek(positionMs) {
     fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${positionMs}`, {
       method: 'PUT',
       headers: this.getHeaders()
-    }).catch((err) => console.log(err))
+    })
+      .catch((err) => console.log(err))
   }
 
   setVolume(value) {
     fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${value}`, {
       method: 'PUT',
       headers: this.getHeaders()
-    }).catch((err) => console.log(err))
+    })
+      .catch((err) => console.log(err))
   }
 
   saveTrack(id) {
     fetch(`https://api.spotify.com/v1/me/tracks?ids=${id}`, {
       method: 'PUT',
       headers: this.getHeaders()
-    }).then(() => {
-      this.setState({ trackSaved: true })
-    }).catch((err) => console.log(err))
+    })
+      .then(() => {
+        this.setState({ trackSaved: true })
+      })
+      .catch((err) => console.log(err))
   }
 
   deleteTrack(id) {
     fetch(`https://api.spotify.com/v1/me/tracks?ids=${id}`, {
       method: 'DELETE',
       headers: this.getHeaders()
-    }).then(() => {
-      this.setState({ trackSaved: false })
-    }).catch((err) => console.log(err))
+    })
+      .then(() => {
+        this.setState({ trackSaved: false })
+      })
+      .catch((err) => console.log(err))
   }
 
   getHeaders() {
