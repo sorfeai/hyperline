@@ -5,10 +5,17 @@ import util from 'util'
 import cp from 'child_process'
 import spotify from 'spotify-node-applescript'
 import SvgIcon from '../../utils/svg-icon'
-
-const exec = util.promisify(cp.exec)
-
-const API_TOKEN = 'BQA_YDsja1NhSf1Sdaswvo83DKaYowlScCkZZrVIMps9s9w0nhwHNbhqKggS6fuOAvJUeOHFyrt2MGDwpHZ4HMVQvJR9cik231zIGPYvDmL_63ehqFWEAiLDc-7rSrjljL8Etwm41qQVnsOwuLet4Bnz88AdojpBGjtlaeI1YBUcv1PiU2YAMf_v5Mtb9H4IkH5Hf3y-3PLg3R24imqG5RCTbde_zJINpQ47_lyi9CbY9BOHEhl2TiQ85gXffCsid6NEPurFd_4fAdKcBkmFDc3On0t9Wo6nXf_8LpFt6uF2'
+import {
+  getCurrentlyPlaying,
+  getDevices,
+  getIsTrackSaved,
+  next,
+  pause,
+  play,
+  previous,
+  seek,
+  setVolume
+} from './spotify-api';
 
 export default class Spotify extends Component {
   static displayName() {
@@ -27,16 +34,13 @@ export default class Spotify extends Component {
     this.options = Object.assign({}, this.getDefaultOptions(), this.props.options)
 
     this.setStatus = this.setStatus.bind(this)
-    this.openSpotify = this.openSpotify.bind(this)
-    this.play = this.play.bind(this)
-    this.pause = this.pause.bind(this)
-    this.previous = this.previous.bind(this)
-    this.next = this.next.bind(this)
+    this.onPlay = this.onPlay.bind(this)
+    this.onPause = this.onPause.bind(this)
   }
 
   componentDidMount() {
-    this.setStatus()
-    this.interval = setInterval(() => this.setStatus(), 1000)
+    this.update()
+    this.interval = setInterval(() => this.update(), 1000)
   }
 
   componentWillUnmount() {
@@ -47,66 +51,13 @@ export default class Spotify extends Component {
     return { miniPlayer: true }
   }
 
+  update() {
+    this.setStatus()
+    this.setVolume()
+  }
+
   setStatus() {
-    osInfo().then(async ({ platform }) => {
-      if (platform === 'darwin') {
-        this.setStatusOSX()
-      } else if (platform === 'linux') {
-        this.setStatusLinux()
-        this.getVolume()
-      }
-    })
-  }
-
-  openSpotifyOSX() {
-    spotify.isRunning((err, isRunning) => {
-      if (!isRunning) {
-        spotify.openSpotify()
-      }
-
-      if (err) {
-        console.log(`Caught exception at handleSpotifyActivation(e): ${err}`)
-      }
-    })
-  }
-
-  setStatusOSX() {
-    spotify.isRunning((err, isRunning) => {
-      if (!isRunning) {
-        this.setState({ state: 'Not running' })
-        return
-      }
-      if (err) {
-        console.log(`Caught exception at setStatus(e): ${err}`)
-      }
-      spotify.getState((err, st) => {
-        if (err) {
-          console.log(`Caught exception at spotify.getState(e): ${err}`)
-        }
-
-        spotify.getTrack((err, track) => {
-          if (err) {
-            console.log(`Caught exception at spotify.getTrack(e): ${err}`)
-          }
-          this.setState({
-            state: `${st.state === 'playing'
-              ? '▶'
-              : '❚❚'} ${track.artist} - ${track.name}`
-          })
-        })
-      })
-    })
-  }
-
-  openSpotifyLinux() {
-    if (!this.isRunning) {
-      exec('spotify')
-      this.isRunning = true
-    }
-  }
-
-  setStatusLinux() {
-    this.getCurrentlyPlaying()
+    getCurrentlyPlaying()
       .then((data) => {
         const item = data.item
         const album = item.album
@@ -122,121 +73,31 @@ export default class Spotify extends Component {
           image: album.images[1].url
         })
 
-        return this.getIsTrackSaved(item.id)
+        return getIsTrackSaved(item.id)
       })
       .then((trackSaved) => {
-        console.log(trackSaved)
         this.setState({ trackSaved })
       })
       .catch((err) => console.log(err))
   }
 
-  getCurrentlyPlaying() {
-    return fetch('https://api.spotify.com/v1/me/player/currently-playing?market=RU', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_TOKEN}`
-      }
-    })
-      .then((res) => res.json())
-      .catch((err) => console.log(err))
+  setVolume() {
+    getDevices()
+      .then((data) => {
+        const device = data.devices.find((dev) => dev.type === 'Computer')
+        this.setState({ volumePercent: device.volume_percent })
+      })
   }
 
-  getIsTrackSaved(trackId) {
-    return fetch(`https://api.spotify.com/v1/me/tracks/contains?ids=${trackId}`, {
+  getLibraryAlbums() {
+    return fetch('https://api.spotify.com/v1/me/albums', {
       method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_TOKEN}`
-      }
-    })
-      .then((res) => res.json())
-      .then((res) => res[0])
-      .catch((err) => console.log(err))
-  }
-
-  getVolume() {
-    fetch('https://api.spotify.com/v1/me/player/devices', {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${API_TOKEN}`
-      }
+      headers: this.getHeaders()
     }).then((res) => res.json())
       .then((data) => {
         const device = data.devices.find((dev) => dev.type === 'Computer')
         this.setState({ volumePercent: device.volume_percent })
       })
-      .catch((err) => console.log(err))
-  }
-
-  openSpotify() {
-    osInfo().then(async ({ platform }) => {
-      if (platform === 'darwin') {
-        this.openSpotifyOSX()
-      } else if (platform === 'linux') {
-        this.openSpotifyLinux()
-      }
-    })
-  }
-
-  play() {
-    fetch('https://api.spotify.com/v1/me/player/play', {
-      method: 'PUT',
-      headers: this.getHeaders()
-    }).then(() => {
-      this.setState({ isPlaying: true })
-    }).catch((err) => console.log(err))
-  }
-
-  pause() {
-    fetch('https://api.spotify.com/v1/me/player/pause', {
-      method: 'PUT',
-      headers: this.getHeaders()
-    })
-      .then(() => {
-        this.setState({ isPlaying: false })
-      })
-      .catch((err) => console.log(err))
-  }
-
-  next() {
-    fetch('https://api.spotify.com/v1/me/player/next', {
-      method: 'POST',
-      headers: this.getHeaders()
-    }).then(() => {
-      this.setState({ trackSaved: false })
-    }).catch((err) => console.log(err))
-  }
-
-  previous() {
-    fetch('https://api.spotify.com/v1/me/player/previous', {
-      method: 'POST',
-      headers: this.getHeaders()
-    })
-      .then(() => {
-        this.setState({ trackSaved: false })
-      })
-      .catch((err) => console.log(err))
-  }
-
-  seek(positionMs) {
-    fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${positionMs}`, {
-      method: 'PUT',
-      headers: this.getHeaders()
-    })
-      .catch((err) => console.log(err))
-  }
-
-  setVolume(value) {
-    fetch(`https://api.spotify.com/v1/me/player/volume?volume_percent=${value}`, {
-      method: 'PUT',
-      headers: this.getHeaders()
-    })
       .catch((err) => console.log(err))
   }
 
@@ -262,12 +123,18 @@ export default class Spotify extends Component {
       .catch((err) => console.log(err))
   }
 
-  getHeaders() {
-    return {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${API_TOKEN}`
-    }
+  onPlay() {
+    play()
+      .then(() => {
+        this.setState({ trackSaved: false })
+      })
+  }
+
+  onPause() {
+    pause()
+      .then(() => {
+        this.setState({ isPlaying: false })
+      })
   }
 
   onMouseDown(ev) {
@@ -283,7 +150,7 @@ export default class Spotify extends Component {
     this.setState((state) => ({
       volumePercent: Math.min(Math.max(0, state.volumePercent + d), 100)
     }), () => {
-      this.setVolume(this.state.volumePercent)
+      setVolume(this.state.volumePercent)
     })
   }
 
@@ -292,7 +159,8 @@ export default class Spotify extends Component {
     const { duration } = this.state
     const { x, width } = this.timelineRef.getBoundingClientRect()
     const position = (ev.clientX - x) / width * duration
-    this.seek(Math.floor(position))
+
+    seek(Math.floor(position))
   }
 
   formatTime(ms) {
@@ -352,13 +220,13 @@ export default class Spotify extends Component {
               </div>
             </div>
             <div className="controls">
-              <span className="control previous" onClick={this.previous}>⇤</span>
+              <span className="control previous" onClick={previous}>⇤</span>
               {isPlaying ? (
-                <span className="control pause" onClick={this.pause}>❚❚</span>
+                <span className="control pause" onClick={this.onPause}>❚❚</span>
               ) : (
-                <span className="control play" onClick={this.play}>▶</span>
+                <span className="control play" onClick={this.onPlay}>▶</span>
               )}
-              <span className="control next" onClick={this.next}>⇥</span>
+              <span className="control next" onClick={next}>⇥</span>
             </div>
           </div>
         ) : null}
