@@ -1,18 +1,16 @@
 import React from 'react'
 import Component from 'hyper/component'
-import { osInfo } from 'systeminformation'
-import util from 'util'
-import cp from 'child_process'
 import spotify from 'spotify-node-applescript'
 import SvgIcon from '../../utils/svg-icon'
 import {
+  getAlbumTracks,
   getCurrentlyPlaying,
   getDevices,
-  getIsTrackSaved,
+  getIsTrackSaved, getLibraryAlbums,
   next,
-  pause,
-  play,
-  previous,
+  pause, pauseCurrentTrack,
+  play, playCurrentTrack, playTrack,
+  previous, saveTrack,
   seek,
   setVolume
 } from './spotify-api';
@@ -25,22 +23,35 @@ export default class Spotify extends Component {
   constructor(props) {
     super(props)
 
-    this.isRunning = false
     this.state = {
       version: 'Not running',
-      loaded: false,
-      showMiniPlayer: false
+      isLoaded: false,
+      showMiniPlayer: false,
+      showLibrary: false,
+      currentlyPlaying: null,
+      library: {
+        selectedAlbum: null,
+        albums: [],
+        tracks: {}
+      }
     }
     this.options = Object.assign({}, this.getDefaultOptions(), this.props.options)
 
-    this.setStatus = this.setStatus.bind(this)
-    this.onPlay = this.onPlay.bind(this)
-    this.onPause = this.onPause.bind(this)
+    this.update = this.update.bind(this)
+    this.getCurrentlyPlaying = this.getCurrentlyPlaying.bind(this)
+    this.playCurrentTrack = this.playCurrentTrack.bind(this)
+    this.pauseCurrentTrack = this.pauseCurrentTrack.bind(this)
+    this.toggleLibrary = this.toggleLibrary.bind(this)
+    this.onTimelineClick = this.onTimelineClick.bind(this)
+    this.onAlbumClick = this.onAlbumClick.bind(this)
   }
 
   componentDidMount() {
     this.update()
-    this.interval = setInterval(() => this.update(), 1000)
+      .then(() => {
+        this.setState({ isLoaded: true })
+      })
+    this.interval = setInterval(this.update, 1000)
   }
 
   componentWillUnmount() {
@@ -52,115 +63,209 @@ export default class Spotify extends Component {
   }
 
   update() {
-    this.setStatus()
-    this.setVolume()
+    return Promise.all([
+      this.getCurrentlyPlaying(),
+      this.getVolume(),
+      this.getLibraryAlbums()
+    ])
   }
 
-  setStatus() {
-    getCurrentlyPlaying()
+  getCurrentlyPlaying() {
+    return getCurrentlyPlaying()
       .then((data) => {
-        const item = data.item
-        const album = item.album
-        this.setState({
-          loaded: true,
-          isPlaying: data.is_playing,
-          track: item.name,
-          trackId: item.id,
-          duration: item.duration_ms,
-          progress: data.progress_ms,
-          artist: album.artists[0].name,
-          album: album.name,
-          image: album.images[1].url
-        })
-
-        return getIsTrackSaved(item.id)
+        this.setCurrentlyPlaying(data)
+        return getIsTrackSaved(data.item.id)
       })
       .then((trackSaved) => {
-        this.setState({ trackSaved })
+        const { isSaved } = this.state.currentlyPlaying
+        if ((trackSaved && !isSaved) || (!trackSaved && isSaved)) {
+          this.toggleIsSaved()
+        }
       })
-      .catch((err) => console.log(err))
   }
 
-  setVolume() {
-    getDevices()
+  getVolume() {
+    return getDevices()
       .then((data) => {
         const device = data.devices.find((dev) => dev.type === 'Computer')
-        this.setState({ volumePercent: device.volume_percent })
+        this.setVolume(device.volume_percent)
       })
   }
 
   getLibraryAlbums() {
-    return fetch('https://api.spotify.com/v1/me/albums', {
-      method: 'GET',
-      headers: this.getHeaders()
-    }).then((res) => res.json())
+    return getLibraryAlbums()
       .then((data) => {
-        const device = data.devices.find((dev) => dev.type === 'Computer')
-        this.setState({ volumePercent: device.volume_percent })
+        this.setState((state) => ({
+          ...state,
+          library: {
+            ...state.library,
+            albums: data.items.map((item) => ({
+              id: item.album.id,
+              uri: item.album.uri,
+              title: item.album.name,
+              artist: item.album.artists[0].name,
+              image: item.album.images[2].url
+            }))
+          }
+        }))
       })
-      .catch((err) => console.log(err))
+  }
+
+  getAlbumTracks(id) {
+    return getAlbumTracks(id)
+      .then((data) => {
+        this.setState((state) => ({
+          ...state,
+          library: {
+            ...state.library,
+            tracks: {
+              ...state.library.tracks,
+              [id]: data.items.map((item) => ({
+                id: item.id,
+                title: item.name,
+                number: item.track_number,
+              }))
+            }
+          }
+        }))
+      })
   }
 
   saveTrack(id) {
-    fetch(`https://api.spotify.com/v1/me/tracks?ids=${id}`, {
-      method: 'PUT',
-      headers: this.getHeaders()
-    })
+    return saveTrack(id)
       .then(() => {
-        this.setState({ trackSaved: true })
+        this.toggleIsSaved()
       })
-      .catch((err) => console.log(err))
   }
 
   deleteTrack(id) {
-    fetch(`https://api.spotify.com/v1/me/tracks?ids=${id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders()
-    })
+    return deleteTrack(id)
       .then(() => {
-        this.setState({ trackSaved: false })
-      })
-      .catch((err) => console.log(err))
-  }
-
-  onPlay() {
-    play()
-      .then(() => {
-        this.setState({ trackSaved: false })
+        this.toggleIsSaved()
       })
   }
 
-  onPause() {
-    pause()
+  playCurrentTrack() {
+    return playCurrentTrack()
       .then(() => {
-        this.setState({ isPlaying: false })
+        this.toggleIsPlaying()
       })
+  }
+
+  pauseCurrentTrack() {
+    return pauseCurrentTrack()
+      .then(() => {
+        this.toggleIsPlaying()
+      })
+  }
+
+  setCurrentlyPlaying(data) {
+    const item = data.item
+    const album = item.album
+    this.setState((state) => ({
+      ...state,
+      currentlyPlaying: {
+        ...state.currentlyPlaying,
+        isPlaying: data.is_playing,
+        track: item.name,
+        trackId: item.id,
+        duration: item.duration_ms,
+        progress: data.progress_ms,
+        artist: album.artists[0].name,
+        album: album.name,
+        image: album.images[1].url
+      }
+    }))
+  }
+
+  setVolume(value) {
+    this.setState((state) => ({
+      ...state,
+      currentlyPlaying: {
+        ...state.currentlyPlaying,
+        volumePercent: value
+      }
+    }))
+  }
+
+  setSelectedAlbum(id) {
+    this.setState((state) => ({
+      ...state,
+      library: {
+        ...state.library,
+        selectedAlbum: id
+      }
+    }))
+  }
+
+  toggleIsPlaying() {
+    this.setState((state) => ({
+      ...state,
+      currentlyPlaying: {
+        ...state.currentlyPlaying,
+        isPlaying: !state.currentlyPlaying.isPlaying
+      }
+    }))
+  }
+
+  toggleIsSaved() {
+    this.setState((state) => ({
+      ...state,
+      currentlyPlaying: {
+        ...state.currentlyPlaying,
+        isSaved: !state.currentlyPlaying.isSaved
+      }
+    }))
+  }
+
+  toggleMiniPlayer() {
+    this.setState((state) => ({
+      ...state,
+      showMiniPlayer: !state.showMiniPlayer,
+      showLibrary: false
+    }))
+  }
+
+  toggleLibrary() {
+    this.setState((state) => ({
+      ...state,
+      showLibrary: !state.showLibrary
+    }))
   }
 
   onMouseDown(ev) {
     if (ev.button === 0) {
       // this.openSpotify()
     } else if (ev.button === 1 && this.options.miniPlayer) {
-      this.setState((state) => ({ showMiniPlayer: !state.showMiniPlayer }))
+      this.toggleMiniPlayer()
     }
   }
 
   onWheel(ev) {
+    const { volumePercent } = this.state.currentlyPlaying
     const d = -Math.floor(ev.deltaY/10)
-    this.setState((state) => ({
-      volumePercent: Math.min(Math.max(0, state.volumePercent + d), 100)
-    }), () => {
-      setVolume(this.state.volumePercent)
-    })
+    const volume = Math.min(Math.max(0, volumePercent + d), 100)
+    this.setVolume(volume)
+    setVolume(volume)
   }
 
   onTimelineClick(ev) {
     if (!this.timelineRef) return
-    const { duration } = this.state
+    const { duration } = this.state.currentlyPlaying
     const { x, width } = this.timelineRef.getBoundingClientRect()
     const position = (ev.clientX - x) / width * duration
-
     seek(Math.floor(position))
+  }
+
+  onAlbumClick(albumId) {
+    this.getAlbumTracks(albumId)
+      .then(() => this.setSelectedAlbum(albumId))
+  }
+
+  onTrackClick(track) {
+    const { selectedAlbum, albums } = this.state.library
+    const album = albums.find((album) => album.id === selectedAlbum)
+    return playTrack(album.uri, track.number - 1)
   }
 
   formatTime(ms) {
@@ -171,85 +276,166 @@ export default class Spotify extends Component {
   }
 
   render() {
-    if (!this.state.loaded) return null;
+    if (!this.state.isLoaded) return null;
 
-    const { showMiniPlayer, isPlaying, track, artist, image, progress, duration, volumePercent, trackSaved, trackId } = this.state
-    const volumeLines = Math.floor((volumePercent+15)/20)
+    const {
+      showMiniPlayer,
+      showLibrary,
+      currentlyPlaying: { isPlaying, isSaved, track, artist, image, progress, duration, volumePercent, trackId },
+      library: { selectedAlbum, albums, tracks }
+    } = this.state
+
+    const volumeLines = Math.floor((volumePercent+5) / 20)
 
     return (
-      <div className='wrapper'
-           onMouseDown={(ev) => this.onMouseDown(ev)}
-           onWheel={(ev) => this.onWheel(ev)}>
+      <div className="wrapper">
         <PluginIcon />
-        <span className="play-status">
-          {isPlaying ? '▶' : '❚❚'} {artist} — {track}
-        </span>
-        <div className="volume-level">
-          {new Array(5).fill(0).map((_, index) => (
-            <div className="volume-line"
-                 style={{ height: `${2 + index*2}px`, opacity: index+1 <= volumeLines ? 1 : 0 }} />
-          ))}
+        <div className="currently-playing"
+             onMouseDown={(ev) => this.onMouseDown(ev)}
+             onWheel={(ev) => this.onWheel(ev)}>
+          <span className="play-status">
+            {isPlaying ? '▶' : '❚❚'} {artist} — {track}
+          </span>
+          <div className="volume-level">
+            {new Array(5).fill(0).map((_, index) => (
+              <div className="volume-line"
+                   style={{ height: `${2 + index*2}px`, opacity: index+1 <= volumeLines ? 1 : 0 }} />
+            ))}
+          </div>
         </div>
         {showMiniPlayer ? (
-          <div className="popup" onMouseDown={(ev) => ev.stopPropagation()}>
-            <div className="album-cover" style={{ backgroundImage: `url(${image})` }} />
-            <div className="top-row">
-              <div className="titles">
-                <div className="titles-track">
-                  <FloatingText text={track} />
+          <React.Fragment>
+            <div className="popup mini-player" onMouseDown={(ev) => ev.stopPropagation()}>
+              <div className="album-cover" style={{ backgroundImage: `url(${image})` }} />
+              <div className="top-row">
+                <div className="titles">
+                  <div className="titles-track">
+                    <FloatingText text={track} />
+                  </div>
+                  <div className="titles-artist small-text">
+                    <FloatingText text={artist} />
+                  </div>
                 </div>
-                <div className="titles-artist">
-                  <FloatingText text={artist} />
+                {isSaved ? (
+                  <div className="control heart-button save-track" onClick={() => this.deleteTrack(trackId)}>♥</div>
+                ) : (
+                  <div className="control heart-button delete-track" onClick={() => this.saveTrack(trackId)}>♡</div>
+                )}
+              </div>
+              <div className="timeline"
+                   ref={(ref) => this.timelineRef = ref}
+                   onClick={this.onTimelineClick}>
+                <div className="timeline-progress" style={{ width: `${progress/duration*100}%` }} />
+              </div>
+              <div className="time small-text">
+                <div className="time-progress">
+                  {this.formatTime(progress)}
+                </div>
+                <div className="time-duration">
+                  {this.formatTime(duration)}
                 </div>
               </div>
-              {trackSaved ? (
-                <div className="control heart-button save-track" onClick={() => this.deleteTrack(trackId)}>♥</div>
-              ) : (
-                <div className="control heart-button delete-track" onClick={() => this.saveTrack(trackId)}>♡</div>
-              )}
-            </div>
-            <div className="timeline" ref={(ref) => this.timelineRef = ref} onClick={(ev) => this.onTimelineClick(ev)}>
-              <div className="timeline-progress" style={{ width: `${progress/duration*100}%` }} />
-            </div>
-            <div className="time">
-              <div className="time-progress">
-                {this.formatTime(progress)}
-              </div>
-              <div className="time-duration">
-                {this.formatTime(duration)}
+              <div className="controls">
+                <span className="control previous" onClick={previous}>⇤</span>
+                {isPlaying ? (
+                  <span className="control pause" onClick={this.pauseCurrentTrack}>❚❚</span>
+                ) : (
+                  <span className="control play" onClick={this.playCurrentTrack}>▶</span>
+                )}
+                <span className="control next" onClick={next}>⇥</span>
               </div>
             </div>
-            <div className="controls">
-              <span className="control previous" onClick={previous}>⇤</span>
-              {isPlaying ? (
-                <span className="control pause" onClick={this.onPause}>❚❚</span>
-              ) : (
-                <span className="control play" onClick={this.onPlay}>▶</span>
-              )}
-              <span className="control next" onClick={next}>⇥</span>
-            </div>
-          </div>
+            {showLibrary ? (
+              <React.Fragment>
+                <div className="popup library">
+                  <div className="library-albums">
+                    {albums.map((album) => (
+                      <div className="library__album-row">
+                        <div className="library__side-col">
+                          <div className="library__album-cover"
+                               style={{ backgroundImage: `url(${album.image})` }}
+                               onClick={() => this.onAlbumClick(album.id)} />
+                        </div>
+                        <div className="library__content-col titles-track">
+                          <div className="library__album-title">
+                            <FloatingText text={album.title} />
+                          </div>
+                          <div className="library__album-artist small-text">
+                            <FloatingText text={album.artist} />
+                          </div>
+                          {(selectedAlbum === album.id && tracks[album.id]) ? (
+                            <div className="library__album-tracks">
+                              {tracks[album.id].map((track) => (
+                                <div className="library__album-track">
+                                  <div className="library__track-number small-text">{track.number}</div>
+                                  <div className="library__track-title" onClick={() => this.onTrackClick(track)}>
+                                    <FloatingText text={`${trackId === track.id ? '▶ ' : ''}${track.title}`} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="library-button close" onClick={this.toggleLibrary}>
+                  {'⤫'}
+                </div>
+              </React.Fragment>
+            ) : (
+              <div className="library-button open" onClick={this.toggleLibrary}>
+                {'▶'}
+              </div>
+            )}
+          </React.Fragment>
         ) : null}
 
         <style jsx>{`
+          .small-text {
+            font-size: 8px;
+            color: rgba(0, 255, 0, .6);
+          }
           .wrapper {
+            position: relative;
             display: flex;
             align-items: center;
             margin-left: auto;
             color: #1ED760;
           }
-          .play-status {
-            color: white;
+          .currently-playing {
+            display: flex;
           }
           .popup {
             position: absolute;
             bottom: 24px;
             width: 200px;
+            height: 290px;
             padding: 6px;
             border: 1px solid #1ED760;
             background: rgba(0,0,0,.75);
             box-sizing: border-box;
+            overflow: hidden;
           }
+          .play-status {
+            color: white;
+          }
+          .volume-level {
+            position: relative;
+            left: 5px;
+            bottom: 4px;
+            display: flex;
+            width: 15px;
+            justify-content: space-between;
+            align-items: flex-end;
+          }
+          .volume-line {
+            width: 2px;
+            background: white;
+          }
+          
+          // mini player
           .album-cover {
             width: 100%;
             padding-top: 100%;
@@ -269,9 +455,7 @@ export default class Spotify extends Component {
           }
           .titles-artist {
             width: 100%;
-            font-size: 8px;
             white-space: nowrap;
-            color: rgba(0, 255, 0, .6);
           }
           .controls {
             position: relative;
@@ -301,8 +485,6 @@ export default class Spotify extends Component {
           .time {
             display: flex;
             justify-content: space-between;
-            font-size: 8px;
-            color: rgba(0, 255, 0, .6);
           }
           .timeline {
             cursor: pointer;
@@ -324,19 +506,6 @@ export default class Spotify extends Component {
             height: 8px;
             background: #1ED760;
           }
-          .volume-level {
-            position: relative;
-            left: 5px;
-            bottom: 2px;
-            display: flex;
-            width: 15px;
-            justify-content: space-between;
-            align-items: flex-end;
-          }
-          .volume-line {
-            width: 2px;
-            background: white;
-          }
           .heart-button {
             position: absolute;
             top: 0;
@@ -348,6 +517,59 @@ export default class Spotify extends Component {
           }
           .heart-button.delete-track {
             line-height: 1.3;
+          }
+          
+          // library
+          .popup.library {
+            left: 205px;
+            overflow-y: scroll;
+          }
+          .library-button {
+            position: absolute;
+            top: -298px;
+            left: 205px;
+            text-align: center;
+            line-height: 14px;
+            width: 15px;
+            height: 15px;
+            border: 1px solid #1ED760;
+            cursor: pointer;
+          }
+          .library-button.close {
+            left: 410px;
+            line-height: 15px;
+            text-indent: -1px;
+          }
+          .library__album-row {
+            display: flex;
+            margin-bottom: 5px;
+          }
+          .library__album-cover {
+            width: 30px;
+            height: 30px;
+            background-repeat: no-repeat;
+            background-size: contain;
+            cursor: pointer;
+          }
+          .library__content-col {
+            max-width: calc(100% - 30px);
+            margin-left: 5px;
+          }
+          .library__album-tracks {
+            margin-top: 5px;
+          }
+          .library__album-track {
+            display: flex;
+            margin-bottom: 5px;
+          }
+          .library__track-number {
+            display: flex;
+            align-items: center;
+            min-width: 14px;
+          }
+          .library__track-title {
+            max-width: calc(100% - 14px);
+            cursor: pointer;
           }
         `}</style>
       </div>
@@ -386,6 +608,7 @@ class FloatingText extends Component {
     this.isFloating = this.textWidth > this.wrapperWidth
     if (this.isFloating) {
       this.startFloating()
+      this.forceUpdate()
     }
   }
 
@@ -415,7 +638,8 @@ class FloatingText extends Component {
           <div className="title-1"
                ref={(ref) => this.textRef = ref}
                onTransitionEnd={this.onTransitionEnd}>
-            {text}</div>
+            {text}
+          </div>
           {this.isFloating ? (
             <div className="title-2">{text}</div>
           ) : null}
@@ -425,6 +649,7 @@ class FloatingText extends Component {
           .title-wrapper {
             display: flex;
             width: ${width};
+            overflow: hidden;
           }
           .title-1 {
             margin-right: ${this.spacing}px;

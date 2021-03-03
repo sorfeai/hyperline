@@ -1,6 +1,6 @@
 
 const API_HOST = 'https://api.spotify.com/v1'
-const API_TOKEN = 'BQDJg2-CFBakct6KUEcSFl2OL_aYSkffzGZrgkn8EkRH2z0WtLUABTe4KrZOY1Pot4ReXzT82WiyF9UziDlLQNUEYsJhZ2qVLqnGUV8VxkJlwY7fovP1Dlt-eO7LH7u5o52O0eXNpfAOEy-s6CnEaSd2DY83qo6RDKbRpviw4xF7jPRvjHTDijjEXMfQDaaQCx2WRGp8G75V2YcbhxTcAuUOp43itVfre5NfpjOSOGy2HdVP4xEPLA7fVd1THI_TpndPRwHuYXT2F_4fZjeWqyJezduz-3dyCkh1UbOD61of'
+const API_TOKEN = 'BQBdC_tS1zg78E6bn8Jb7kVczsdfSl6rvzsBmk1_f7WBr1ZhTt2ZaDCqhsPdAipA_pPHQPEijMARlvHr0smkXZhyePMb78XblkLB4vTXAXoxXobxWVuQC-VOZu5Lm5GIq-KXgN9H3l_DF8iMnFLMTbTO3yBRHucY6Z8f95LYr0ShOy2WNd3VVia-ZyL3WYgJSMrrNoFY73stR6vHdxbqhWsZJ9S6k0nKxAn_IJVTXIgVT6cnL56G_M_kLkPA9JBSWmGP9-V8BfUXCPwR467eHUgJekM9lPnvxyBbL8-bzDn6'
 
 const headers = {
   'Accept': 'application/json',
@@ -36,7 +36,20 @@ export function getDevices() {
     .catch((err) => console.log(err))
 }
 
-export function play() {
+export function playTrack(contextUri, position) {
+  return fetch(`${API_HOST}/me/player/play`, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({
+      context_uri: contextUri,
+      offset: { position },
+      position_ms: 0
+    })
+  })
+    .catch((err) => console.log(err))
+}
+
+export function playCurrentTrack(contextUri, position) {
   return fetch(`${API_HOST}/me/player/play`, {
     method: 'PUT',
     headers
@@ -44,7 +57,7 @@ export function play() {
     .catch((err) => console.log(err))
 }
 
-export function pause() {
+export function pauseCurrentTrack() {
   return fetch(`${API_HOST}/me/player/pause`, {
     method: 'PUT',
     headers
@@ -81,5 +94,39 @@ export function setVolume(value) {
     method: 'PUT',
     headers
   })
+    .catch((err) => console.log(err))
+}
+
+export function saveTrack(id) {
+  fetch(`${API_HOST}/me/tracks?ids=${id}`, {
+    method: 'PUT',
+    headers
+  })
+    .catch((err) => console.log(err))
+}
+
+export function deleteTrack(id) {
+  fetch(`${API_HOST}/me/tracks?ids=${id}`, {
+    method: 'DELETE',
+    headers
+  })
+    .catch((err) => console.log(err))
+}
+
+export function getLibraryAlbums() {
+  return fetch(`${API_HOST}/me/albums`, {
+    method: 'GET',
+    headers
+  })
+    .then((res) => res.json())
+    .catch((err) => console.log(err))
+}
+
+export function getAlbumTracks(id) {
+  return fetch(`${API_HOST}/albums/${id}/tracks?market=RU&limit=50`, {
+    method: 'GET',
+    headers
+  })
+    .then((res) => res.json())
     .catch((err) => console.log(err))
 }
