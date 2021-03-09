@@ -1,6 +1,6 @@
 
 const API_HOST = 'https://api.spotify.com/v1'
-const API_TOKEN = 'BQBdC_tS1zg78E6bn8Jb7kVczsdfSl6rvzsBmk1_f7WBr1ZhTt2ZaDCqhsPdAipA_pPHQPEijMARlvHr0smkXZhyePMb78XblkLB4vTXAXoxXobxWVuQC-VOZu5Lm5GIq-KXgN9H3l_DF8iMnFLMTbTO3yBRHucY6Z8f95LYr0ShOy2WNd3VVia-ZyL3WYgJSMrrNoFY73stR6vHdxbqhWsZJ9S6k0nKxAn_IJVTXIgVT6cnL56G_M_kLkPA9JBSWmGP9-V8BfUXCPwR467eHUgJekM9lPnvxyBbL8-bzDn6'
+const API_TOKEN = 'BQB74XtkOi5fyeF1nlMBcyYXCTT5cLLxrdjeCf0iCFawnnguQrgWjlkQ7VjLP-0xqTVWjLtdBljvWZ-EkC5Zbq2yJ8-6S-JgfqOKUzysffJ8eMt5BTSUQGoW9rl0-T8-3Ako2ze--TOQceoKoGdYFlhVirP90Et-s_XUnlebhRKY_Ir2bz__F8D_xKmasOABvE-WfNtww3bMKC-TARXOhkxWB5gU7PHTMKI3WS5vJzdctHOlUd18qw2Pr0VwEYjY9k9fVy2KlfcmKLNsBWwKpTtk4aO4qUmsP7u1jbgMHgsW'
 
 const headers = {
   'Accept': 'application/json',
