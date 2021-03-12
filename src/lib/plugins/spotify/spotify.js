@@ -2,6 +2,7 @@ import React from 'react'
 import Component from 'hyper/component'
 import spotify from 'spotify-node-applescript'
 import {
+  authUser,
   deleteTrack,
   getAlbumTracks,
   getCurrentlyPlaying,
@@ -141,11 +142,13 @@ export default class Spotify extends Component {
   }
 
   componentDidMount() {
-    this.update()
-      .then(() => {
-        this.setState({ isLoaded: true })
-      })
-    this.interval = setInterval(this.update, 1000)
+    authUser()
+
+    // this.update()
+    //   .then(() => {
+    //     this.setState({ isLoaded: true })
+    //   })
+    // this.interval = setInterval(this.update, 1000)
   }
 
   componentWillUnmount() {
